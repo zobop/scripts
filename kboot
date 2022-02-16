@@ -1,0 +1,37 @@
+#!/bin/env python
+import re, sys
+import subprocess
+import argparse
+
+parser = argparse.ArgumentParser(description = 'kexec reboot')
+parser.add_argument("-u", "--update", help="Update system before trying kexec reboot", action="store_true")
+parser.add_argument("-f", "--force", help="Force boot to same kernel (no update)", action="store_true")
+args = parser.parse_args()
+
+def findNextKernelVersion():
+    grubbyOut = subprocess.check_output(["grubby","--default-kernel"]).strip()
+    grubbySplit = (grubbyOut.decode()).split("-", 1)
+    latest_kernel = grubbySplit[1]
+    return latest_kernel
+
+def doReboot():
+    subprocess.call(["kexec", "-u"])
+    subprocess.call(["kexec", "-l", "/boot/vmlinuz-" + nextKernel, "--initrd=/boot/initramfs-" + nextKernel + ".img", "--reuse-cmdline" ])
+    subprocess.call(["kexec", "-e"])
+    #subprocess.call(["systemctl", "kexec"])
+
+if args.update:
+    print ("Running updates")
+    subprocess.call(["yum", "clean", "all"])
+    subprocess.call(["yum", "-y", "update"])
+
+nextKernel = findNextKernelVersion()
+currentKernel = (subprocess.check_output(["uname", "-r"]).strip()).decode()
+
+if currentKernel == nextKernel:
+    if args.force:
+        doReboot()
+    else:
+        print ("The system is already running the latest version. To force kexec reboot, please specify -f")
+else:
+    doReboot()
